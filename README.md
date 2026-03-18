@@ -12,6 +12,6 @@
 
 ### App features, bugs, feedback support
 
-<img src="dashboard.png" alt="Chatbot" width="300" height="200">
+<img src="dashboard.png" alt="Chatbot" width="600" height="500">
 
 
