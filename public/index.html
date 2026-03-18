@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Excess Food Management - Login</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="app-shell">
+    <div class="app-header">
+      <div class="brand">
+        <div class="brand-logo">E</div>
+        <div class="brand-text">
+          <h1>Excess Food</h1>
+          <span>Share surplus • Reduce waste</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="badge-pill">Node + TypeScript + SQLite</div>
+      </div>
+    </div>
+
+    <div class="auth-layout">
+      <section class="auth-hero">
+        <h2 class="auth-hero-title">Connect donors with people in need.</h2>
+        <p class="auth-hero-subtitle">
+          Donors can list excess food with expiry time, and users can quickly discover available items before they go to waste.
+        </p>
+        <div class="hero-metrics">
+          <div class="metric-pill">Auto-cleans expired food</div>
+          <div class="metric-pill">Two roles: Donor & User</div>
+          <div class="metric-pill">Simple, responsive UI</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Get started</h2>
+            <p class="panel-subtitle">Register once, then log in with the same email.</p>
+          </div>
+          <span class="chip">Auth</span>
+        </div>
+
+        <div class="form-grid form-grid-full" style="margin-bottom: 12px;">
+          <!-- Register -->
+          <div class="form-group form-grid-full">
+            <h3 style="margin:0 0 4px;font-size:14px;">Register</h3>
+          </div>
+
+          <form id="registerForm" class="form-grid form-grid-full">
+            <div class="form-group form-grid-full">
+              <label for="regName">Name</label>
+              <input type="text" id="regName" placeholder="Your full name" required />
+            </div>
+
+            <div class="form-group form-grid-full">
+              <label for="regEmail">Email</label>
+              <input type="email" id="regEmail" placeholder="you@example.com" required />
+            </div>
+
+            <div class="form-group">
+              <label for="regPassword">Password</label>
+              <input type="password" id="regPassword" placeholder="Choose a strong password" required />
+            </div>
+
+            <div class="form-group">
+              <label for="regRole">Role</label>
+              <select id="regRole">
+                <option value="user">User</option>
+                <option value="donor">Donor</option>
+              </select>
+            </div>
+
+            <div class="form-group form-grid-full">
+              <button type="submit" class="btn-primary">
+                Create account
+              </button>
+            </div>
+          </form>
+
+          <div class="form-group form-grid-full" style="margin-top: 10px;">
+            <h3 style="margin:10px 0 4px;font-size:14px;">Login</h3>
+          </div>
+
+          <!-- Login -->
+          <form id="loginForm" class="form-grid form-grid-full">
+            <div class="form-group form-grid-full">
+              <label for="logEmail">Email</label>
+              <input type="email" id="logEmail" placeholder="you@example.com" required />
+            </div>
+
+            <div class="form-group form-grid-full">
+              <label for="logPassword">Password</label>
+              <input type="password" id="logPassword" placeholder="Your password" required />
+            </div>
+
+            <div class="form-group form-grid-full">
+              <button type="submit" class="btn-primary">
+                Continue
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "/api";
+
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target; // form reference
+  const body = {
+    name: document.getElementById("regName").value,
+    email: document.getElementById("regEmail").value,
+    password: document.getElementById("regPassword").value,
+    role: document.getElementById("regRole").value,
+  };
+  const res = await fetch(API_BASE + "/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  alert(data.message || "Registered");
+
+  if (res.ok) {
+    form.reset(); // clear all fields after successful registration
+  }
+});
+
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = {
+    email: document.getElementById("logEmail").value,
+    password: document.getElementById("logPassword").value,
+  };
+  const res = await fetch(API_BASE + "/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role", data.role);
+    localStorage.setItem("name", data.name);
+    window.location.href = "/dashboard.html";
+  } else {
+    alert(data.message || "Login failed");
+  }
+});
+</script>
+<!-- Support Chatbot -->
+<div id="support-chat" style="display:none;position:fixed;bottom:20px;right:20px;width:320px;height:420px;background:rgba(15,23,42,0.98);border-radius:14px;border:1px solid rgba(148,163,184,.3);box-shadow:0 20px 40px rgba(0,0,0,.5);z-index:9999">
+  <div style="background:linear-gradient(135deg,#22c55e,#16a34a);padding:15px;border-radius:14px 14px 0 0;color:#022c22;font-weight:600;font-size:14px;display:flex;justify-content:space-between">
+    <span>🆘 Support Bot</span><button onclick="toggleSupport()" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(2,44,34,.8)">×</button>
+  </div>
+  <div id="support-messages" style="height:300px;padding:15px;overflow-y:auto;background:rgba(15,23,42,.6)"></div>
+  <div style="padding:15px;border-top:1px solid rgba(148,163,184,.3);display:flex;gap:8px">
+    <input id="support-input" placeholder="Ask support..." style="flex:1;padding:10px;border:1px solid rgba(148,163,184,.3);border-radius:10px;background:rgba(15,23,42,.9);color:#e5e7eb">
+    <button onclick="sendSupport()" style="padding:10px 16px;background:#22c55e;color:#022c22;border:none;border-radius:10px;font-weight:600;cursor:pointer">Send</button>
+  </div>
+</div>
+<button id="support-toggle" onclick="toggleSupport()" style="position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#22c55e;border:none;color:#022c22;font-size:20px;box-shadow:0 10px 25px rgba(34,197,94,.4);cursor:pointer;z-index:9998">🆘</button>
+
+<script>
+let supportVisible=false;
+function toggleSupport(){document.getElementById('support-chat').style.display=supportVisible?'none':'block';document.getElementById('support-toggle').style.opacity=supportVisible?'0.6':'1';supportVisible=!supportVisible}
+async function sendSupport(){const input=document.getElementById('support-input'),msg=input.value.trim();if(!msg)return;addSupportMsg('user',msg);input.value='';try{const res=await fetch('/api/support',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});const data=await res.json();addSupportMsg('bot',data.reply)}catch{addSupportMsg('bot','Server error')}}function addSupportMsg(sender,text){const msgs=document.getElementById('support-messages'),div=document.createElement('div');div.style.cssText=sender==='user'?'margin:8px auto 8px auto;padding:12px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#022c22;border-radius:16px;max-width:80%;text-align:right':'margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:16px;max-width:80%;color:#e5e7eb';div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}document.getElementById('support-input').addEventListener('keypress',e=>e.key==='Enter'&&sendSupport());setTimeout(()=>addSupportMsg('bot','🆘 Hi! Need help with login, donations, or app?'),1500);
+</script>
+</body>
+</html>

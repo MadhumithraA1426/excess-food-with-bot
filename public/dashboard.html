@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard - Excess Food Management</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="app-shell">
+    <div class="app-header">
+      <div class="brand">
+        <div class="brand-logo">E</div>
+        <div class="brand-text">
+          <h1>Excess Food Dashboard</h1>
+          <span id="welcome" class="text-muted"></span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="logoutBtn" class="btn-ghost">Logout</button>
+      </div>
+    </div>
+
+    <div class="app-body">
+      <!-- Donor panel -->
+      <section id="donorSection" class="panel" style="display:none;">
+        <div class="panel-header">
+          <div>
+            <h2>Post food</h2>
+            <p class="panel-subtitle">Describe your surplus food and set the expiry time.</p>
+          </div>
+          <span class="chip">Donor only</span>
+        </div>
+
+        <form id="foodForm">
+          <div class="form-grid">
+            <div class="form-group form-grid-full">
+              <label for="title">Food title</label>
+              <input type="text" id="title" placeholder="E.g., Veg meals, bread packets" required />
+            </div>
+
+            <div class="form-group form-grid-full">
+              <label for="description">Description</label>
+              <textarea id="description" placeholder="Short description, special notes etc."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="quantity">Quantity</label>
+              <input type="text" id="quantity" placeholder="E.g., 10 plates, 5 boxes" />
+            </div>
+
+            <div class="form-group">
+              <label for="contact">Contact info</label>
+              <input type="text" id="contact" placeholder="Phone / location details" required />
+            </div>
+
+            <div class="form-group form-grid-full">
+              <label for="expiry">Expiry date & time</label>
+              <input type="datetime-local" id="expiry" required />
+              <span class="text-muted mt-1" style="font-size:11px;">
+                After this time the listing is automatically removed.
+              </span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            Publish listing
+          </button>
+        </form>
+
+        <div class="mt-2">
+          <h3 style="margin:14px 0 6px;font-size:14px;">My active foods</h3>
+          <div id="myFoods" class="cards-grid"></div>
+        </div>
+      </section>
+
+      <!-- All foods panel -->
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Available foods</h2>
+            <p class="panel-subtitle">
+              Non-expired listings from all donors, ordered by nearest expiry.
+            </p>
+          </div>
+          <span class="chip">Live</span>
+        </div>
+        <div id="foods" class="cards-grid"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "/api";
+const token = localStorage.getItem("token");
+const role = localStorage.getItem("role");
+const name = localStorage.getItem("name");
+
+if (!token) {
+  window.location.href = "/";
+}
+
+document.getElementById("welcome").innerText =
+  "Logged in as " + name + " (" + role + ")";
+
+document.getElementById("logoutBtn").onclick = () => {
+  localStorage.clear();
+  window.location.href = "/";
+};
+
+if (role === "donor") {
+  document.getElementById("donorSection").style.display = "block";
+
+  document.getElementById("foodForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const expiryValue = document.getElementById("expiry").value;
+    const body = {
+      title: document.getElementById("title").value,
+      description: document.getElementById("description").value,
+      quantity: document.getElementById("quantity").value,
+      contact_info: document.getElementById("contact").value,
+      expiry: new Date(expiryValue).toISOString(),
+    };
+
+    const res = await fetch(API_BASE + "/foods", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    alert(data.message || "Food added");
+    loadMyFoods();
+    loadFoods();
+  });
+}
+
+async function loadFoods() {
+  const res = await fetch(API_BASE + "/foods");
+  const foods = await res.json();
+  const container = document.getElementById("foods");
+  container.innerHTML = "";
+  foods.forEach((f) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="card-header-line">
+        <div class="card-title">${f.title}</div>
+        <span class="card-chip">Donor: ${f.donor_name || "Unknown"}</span>
+      </div>
+      <div class="card-body">
+        <p>${f.description || ""}</p>
+        <div class="card-meta">
+          <span><strong>Qty:</strong> ${f.quantity || "N/A"}</span>
+          <span><strong>Expires:</strong> ${new Date(f.expiry).toLocaleString()}</span>
+          <span><strong>Contact:</strong> ${f.contact_info}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+async function loadMyFoods() {
+  if (role !== "donor") return;
+  const res = await fetch(API_BASE + "/foods/mine", {
+    headers: { "Authorization": "Bearer " + token },
+  });
+  const foods = await res.json();
+  const container = document.getElementById("myFoods");
+  container.innerHTML = "";
+  foods.forEach((f) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="card-header-line">
+        <div class="card-title">${f.title}</div>
+        <span class="card-chip">My listing</span>
+      </div>
+      <div class="card-body">
+        <p>${f.description || ""}</p>
+        <div class="card-meta">
+          <span><strong>Qty:</strong> ${f.quantity || "N/A"}</span>
+          <span><strong>Expires:</strong> ${new Date(f.expiry).toLocaleString()}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+loadFoods();
+loadMyFoods();
+</script>
+<!-- Support Chatbot -->
+<div id="support-chat" style="display:none;position:fixed;bottom:20px;right:20px;width:320px;height:420px;background:rgba(15,23,42,0.98);border-radius:14px;border:1px solid rgba(148,163,184,.3);box-shadow:0 20px 40px rgba(0,0,0,.5);z-index:9999">
+  <div style="background:linear-gradient(135deg,#22c55e,#16a34a);padding:15px;border-radius:14px 14px 0 0;color:#022c22;font-weight:600;font-size:14px;display:flex;justify-content:space-between">
+    <span>🆘 Support Bot</span><button onclick="toggleSupport()" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(2,44,34,.8)">×</button>
+  </div>
+  <div id="support-messages" style="height:300px;padding:15px;overflow-y:auto;background:rgba(15,23,42,.6)"></div>
+  <div style="padding:15px;border-top:1px solid rgba(148,163,184,.3);display:flex;gap:8px">
+    <input id="support-input" placeholder="Ask support..." style="flex:1;padding:10px;border:1px solid rgba(148,163,184,.3);border-radius:10px;background:rgba(15,23,42,.9);color:#e5e7eb">
+    <button onclick="sendSupport()" style="padding:10px 16px;background:#22c55e;color:#022c22;border:none;border-radius:10px;font-weight:600;cursor:pointer">Send</button>
+  </div>
+</div>
+<button id="support-toggle" onclick="toggleSupport()" style="position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#22c55e;border:none;color:#022c22;font-size:20px;box-shadow:0 10px 25px rgba(34,197,94,.4);cursor:pointer;z-index:9998">🆘</button>
+
+<script>
+let supportVisible=false;
+function toggleSupport(){document.getElementById('support-chat').style.display=supportVisible?'none':'block';document.getElementById('support-toggle').style.opacity=supportVisible?'0.6':'1';supportVisible=!supportVisible}
+async function sendSupport(){const input=document.getElementById('support-input'),msg=input.value.trim();if(!msg)return;addSupportMsg('user',msg);input.value='';try{const res=await fetch('/api/support',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});const data=await res.json();addSupportMsg('bot',data.reply)}catch{addSupportMsg('bot','Server error')}}function addSupportMsg(sender,text){const msgs=document.getElementById('support-messages'),div=document.createElement('div');div.style.cssText=sender==='user'?'margin:8px auto 8px auto;padding:12px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#022c22;border-radius:16px;max-width:80%;text-align:right':'margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:16px;max-width:80%;color:#e5e7eb';div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}document.getElementById('support-input').addEventListener('keypress',e=>e.key==='Enter'&&sendSupport());setTimeout(()=>addSupportMsg('bot','🆘 Hi! Need help with login, donations, or app?'),1500);
+</script>
+</body>
+</html>
