@@ -10,6 +10,12 @@
 
 ### Helps users: find donations + contact donors
 
+### Attached dashboard to see donated foods count
+
+### Added two buttons namely donated and delete for donor page
+
+### Included dark and light theme
+
 ### App features, bugs, feedback support
 
 <img src="dashboard.png" alt="Chatbot" width="600" height="500">
