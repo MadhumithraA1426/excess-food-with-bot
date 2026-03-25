@@ -17,11 +17,46 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="themeToggleBtn" class="btn-ghost">Light</button>
         <button id="logoutBtn" class="btn-ghost">Logout</button>
       </div>
     </div>
 
     <div class="app-body">
+      <section class="panel" id="statsPanel" style="grid-column: 1 / -1;">
+        <div class="panel-header">
+          <div>
+            <h2>Donations Dashboard</h2>
+            <p class="panel-subtitle">
+              Total donated items + numeric quantity (from your quantity text).
+            </p>
+          </div>
+          <span class="chip">Live</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+          <div class="card">
+            <div class="card-header-line">
+              <div class="card-title">Total donated items</div>
+              <span class="card-chip" id="totalDonatedCount">0</span>
+            </div>
+            <div class="card-body">
+              <p><strong>Quantity:</strong> <span id="totalDonatedQuantity">0</span></p>
+            </div>
+          </div>
+
+          <div class="card" id="myDonatedCard" style="display:none;">
+            <div class="card-header-line">
+              <div class="card-title">My donated items</div>
+              <span class="card-chip" id="myDonatedCount">0</span>
+            </div>
+            <div class="card-body">
+              <p><strong>Quantity:</strong> <span id="myDonatedQuantity">0</span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Donor panel -->
       <section id="donorSection" class="panel" style="display:none;">
         <div class="panel-header">
@@ -96,6 +131,33 @@ const API_BASE = "/api";
 const token = localStorage.getItem("token");
 const role = localStorage.getItem("role");
 const name = localStorage.getItem("name");
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById("themeToggleBtn");
+  if (btn) btn.innerText = theme === "light" ? "Dark" : "Light";
+}
+
+const savedTheme = localStorage.getItem("theme");
+const initialTheme =
+  savedTheme ||
+  (window.matchMedia &&
+  window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark");
+applyTheme(initialTheme);
+window.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: initialTheme } }));
+
+const themeBtn = document.getElementById("themeToggleBtn");
+if (themeBtn) {
+  themeBtn.onclick = () => {
+    const current = document.documentElement.dataset.theme || "dark";
+    const next = current === "light" ? "dark" : "light";
+    localStorage.setItem("theme", next);
+    applyTheme(next);
+    window.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: next } }));
+  };
+}
 
 if (!token) {
   window.location.href = "/";
@@ -186,14 +248,125 @@ async function loadMyFoods() {
           <span><strong>Qty:</strong> ${f.quantity || "N/A"}</span>
           <span><strong>Expires:</strong> ${new Date(f.expiry).toLocaleString()}</span>
         </div>
+        <div style="margin-top: 14px; text-align: right; display:flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+          <button class="btn-ghost" style="padding: 6px 12px; font-size: 14px; color: #22c55e; border: 1px solid #22c55e; cursor: pointer;" data-action="donated" data-food-id="${f.id}">Donated</button>
+          <button class="btn-ghost" style="padding: 6px 12px; font-size: 14px; color: #ef4444; border: 1px solid #ef4444; cursor: pointer;" data-action="delete" data-food-id="${f.id}">Delete</button>
+        </div>
       </div>
     `;
     container.appendChild(div);
   });
 }
 
+function formatNumber(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "0";
+  return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+async function loadDonationStats() {
+  try {
+    const res = await fetch(API_BASE + "/foods/stats");
+    const data = await res.json();
+
+    document.getElementById("totalDonatedCount").innerText =
+      data.donatedCount ?? 0;
+    document.getElementById("totalDonatedQuantity").innerText = formatNumber(
+      data.donatedQuantityTotal ?? 0
+    );
+  } catch (e) {
+    console.error(e);
+  }
+
+  if (role === "donor") {
+    const myCard = document.getElementById("myDonatedCard");
+    myCard.style.display = "block";
+
+    try {
+      const res = await fetch(API_BASE + "/foods/mine/stats", {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await res.json();
+
+      document.getElementById("myDonatedCount").innerText =
+        data.donatedCount ?? 0;
+      document.getElementById("myDonatedQuantity").innerText = formatNumber(
+        data.donatedQuantityTotal ?? 0
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
+async function markDonated(foodId) {
+  if (!confirm("Mark this food as donated? It will be removed from available listings."))
+    return;
+
+  try {
+    const res = await fetch(API_BASE + "/foods/" + foodId + "/donated", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && res.status === 404) {
+      // Backward-compatible fallback if server was not restarted with new route.
+      await deleteFood(foodId, false);
+      return;
+    }
+    if (!res.ok) {
+      throw new Error(data.message || "Failed to mark donated");
+    }
+
+    alert(data.message || "Food marked as donated");
+    await Promise.all([loadFoods(), loadMyFoods(), loadDonationStats()]);
+  } catch (e) {
+    alert("Error marking donated: " + (e?.message || "Unknown error"));
+  }
+}
+
+async function deleteFood(foodId, shouldConfirm = true) {
+  if (shouldConfirm && !confirm("Are you sure you want to delete this listing?")) return;
+  try {
+    const res = await fetch(API_BASE + "/foods/" + foodId, {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + token },
+    });
+    
+    const data = await res.json().catch(() => ({}));
+    
+    if (!res.ok) {
+      throw new Error(data.message || "Failed to delete food");
+    }
+    
+    alert(data.message || "Food deleted");
+    await Promise.all([loadFoods(), loadMyFoods(), loadDonationStats()]);
+  } catch (e) {
+    alert("Error deleting food: " + (e?.message || "Unknown error"));
+  }
+}
+
+document.getElementById("myFoods").addEventListener("click", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest("button[data-action][data-food-id]");
+  if (!(button instanceof HTMLElement)) return;
+
+  const foodId = Number(button.dataset.foodId);
+  const action = button.dataset.action;
+  if (!foodId || !action) return;
+
+  if (action === "delete") {
+    deleteFood(foodId);
+  } else if (action === "donated") {
+    markDonated(foodId);
+  }
+});
+
 loadFoods();
 loadMyFoods();
+loadDonationStats();
 </script>
 <!-- Support Chatbot -->
 <div id="support-chat" style="display:none;position:fixed;bottom:20px;right:20px;width:320px;height:420px;background:rgba(15,23,42,0.98);border-radius:14px;border:1px solid rgba(148,163,184,.3);box-shadow:0 20px 40px rgba(0,0,0,.5);z-index:9999">
@@ -209,9 +382,79 @@ loadMyFoods();
 <button id="support-toggle" onclick="toggleSupport()" style="position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#22c55e;border:none;color:#022c22;font-size:20px;box-shadow:0 10px 25px rgba(34,197,94,.4);cursor:pointer;z-index:9998">🆘</button>
 
 <script>
-let supportVisible=false;
-function toggleSupport(){document.getElementById('support-chat').style.display=supportVisible?'none':'block';document.getElementById('support-toggle').style.opacity=supportVisible?'0.6':'1';supportVisible=!supportVisible}
-async function sendSupport(){const input=document.getElementById('support-input'),msg=input.value.trim();if(!msg)return;addSupportMsg('user',msg);input.value='';try{const res=await fetch('/api/support',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});const data=await res.json();addSupportMsg('bot',data.reply)}catch{addSupportMsg('bot','Server error')}}function addSupportMsg(sender,text){const msgs=document.getElementById('support-messages'),div=document.createElement('div');div.style.cssText=sender==='user'?'margin:8px auto 8px auto;padding:12px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#022c22;border-radius:16px;max-width:80%;text-align:right':'margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:16px;max-width:80%;color:#e5e7eb';div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}document.getElementById('support-input').addEventListener('keypress',e=>e.key==='Enter'&&sendSupport());setTimeout(()=>addSupportMsg('bot','🆘 Hi! Need help with login, donations, or app?'),1500);
+let supportVisible = false;
+function applySupportTheme(theme) {
+  const isLight = theme === "light";
+  const chat = document.getElementById("support-chat");
+  const messages = document.getElementById("support-messages");
+  const input = document.getElementById("support-input");
+  if (chat) {
+    chat.style.background = isLight ? "rgba(255,255,255,0.98)" : "rgba(15,23,42,0.98)";
+    chat.style.border = isLight ? "1px solid rgba(15,23,42,.15)" : "1px solid rgba(148,163,184,.3)";
+    chat.style.boxShadow = isLight ? "0 20px 40px rgba(2,6,23,.15)" : "0 20px 40px rgba(0,0,0,.5)";
+  }
+  if (messages) {
+    messages.style.background = isLight ? "rgba(248,250,252,.9)" : "rgba(15,23,42,.6)";
+    messages.style.color = isLight ? "#0f172a" : "#e5e7eb";
+  }
+  if (input) {
+    input.style.background = isLight ? "#ffffff" : "rgba(15,23,42,.9)";
+    input.style.border = isLight ? "1px solid rgba(15,23,42,.2)" : "1px solid rgba(148,163,184,.3)";
+    input.style.color = isLight ? "#0f172a" : "#e5e7eb";
+  }
+}
+window.addEventListener("theme-changed", (e) => {
+  applySupportTheme(e.detail?.theme || "dark");
+});
+applySupportTheme(document.documentElement.dataset.theme || "dark");
+
+function toggleSupport() {
+  document.getElementById("support-chat").style.display = supportVisible
+    ? "none"
+    : "block";
+  document.getElementById("support-toggle").style.opacity = supportVisible
+    ? "0.6"
+    : "1";
+  supportVisible = !supportVisible;
+}
+async function sendSupport() {
+  const input = document.getElementById("support-input");
+  const msg = input.value.trim();
+  if (!msg) return;
+  addSupportMsg("user", msg);
+  input.value = "";
+  try {
+    const res = await fetch("/api/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await res.json();
+    addSupportMsg("bot", data.reply);
+  } catch {
+    addSupportMsg("bot", "Server error");
+  }
+}
+function addSupportMsg(sender, text) {
+  const msgs = document.getElementById("support-messages");
+  const div = document.createElement("div");
+  const isLight = document.documentElement.dataset.theme === "light";
+  if (sender === "user") {
+    div.style.cssText =
+      "margin:8px auto 8px auto;padding:12px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#022c22;border-radius:16px;max-width:80%;text-align:right";
+  } else {
+    div.style.cssText = isLight
+      ? "margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);border-radius:16px;max-width:80%;color:#0f172a"
+      : "margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:16px;max-width:80%;color:#e5e7eb";
+  }
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+document.getElementById("support-input").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendSupport();
+});
+setTimeout(() => addSupportMsg("bot", "🆘 Hi! Need help with login, donations, or app?"), 1500);
 </script>
 </body>
 </html>

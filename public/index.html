@@ -17,6 +17,7 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="themeToggleBtn" class="btn-ghost">Light</button>
         <div class="badge-pill">Node + TypeScript + SQLite</div>
       </div>
     </div>
@@ -111,6 +112,33 @@
 <script>
 const API_BASE = "/api";
 
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById("themeToggleBtn");
+  if (btn) btn.innerText = theme === "light" ? "Dark" : "Light";
+}
+
+const savedTheme = localStorage.getItem("theme");
+const initialTheme =
+  savedTheme ||
+  (window.matchMedia &&
+  window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark");
+applyTheme(initialTheme);
+window.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: initialTheme } }));
+
+const themeBtn = document.getElementById("themeToggleBtn");
+if (themeBtn) {
+  themeBtn.onclick = () => {
+    const current = document.documentElement.dataset.theme || "dark";
+    const next = current === "light" ? "dark" : "light";
+    localStorage.setItem("theme", next);
+    applyTheme(next);
+    window.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: next } }));
+  };
+}
+
 document.getElementById("registerForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target; // form reference
@@ -169,9 +197,79 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 <button id="support-toggle" onclick="toggleSupport()" style="position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#22c55e;border:none;color:#022c22;font-size:20px;box-shadow:0 10px 25px rgba(34,197,94,.4);cursor:pointer;z-index:9998">🆘</button>
 
 <script>
-let supportVisible=false;
-function toggleSupport(){document.getElementById('support-chat').style.display=supportVisible?'none':'block';document.getElementById('support-toggle').style.opacity=supportVisible?'0.6':'1';supportVisible=!supportVisible}
-async function sendSupport(){const input=document.getElementById('support-input'),msg=input.value.trim();if(!msg)return;addSupportMsg('user',msg);input.value='';try{const res=await fetch('/api/support',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});const data=await res.json();addSupportMsg('bot',data.reply)}catch{addSupportMsg('bot','Server error')}}function addSupportMsg(sender,text){const msgs=document.getElementById('support-messages'),div=document.createElement('div');div.style.cssText=sender==='user'?'margin:8px auto 8px auto;padding:12px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#022c22;border-radius:16px;max-width:80%;text-align:right':'margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:16px;max-width:80%;color:#e5e7eb';div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}document.getElementById('support-input').addEventListener('keypress',e=>e.key==='Enter'&&sendSupport());setTimeout(()=>addSupportMsg('bot','🆘 Hi! Need help with login, donations, or app?'),1500);
+let supportVisible = false;
+function applySupportTheme(theme) {
+  const isLight = theme === "light";
+  const chat = document.getElementById("support-chat");
+  const messages = document.getElementById("support-messages");
+  const input = document.getElementById("support-input");
+  if (chat) {
+    chat.style.background = isLight ? "rgba(255,255,255,0.98)" : "rgba(15,23,42,0.98)";
+    chat.style.border = isLight ? "1px solid rgba(15,23,42,.15)" : "1px solid rgba(148,163,184,.3)";
+    chat.style.boxShadow = isLight ? "0 20px 40px rgba(2,6,23,.15)" : "0 20px 40px rgba(0,0,0,.5)";
+  }
+  if (messages) {
+    messages.style.background = isLight ? "rgba(248,250,252,.9)" : "rgba(15,23,42,.6)";
+    messages.style.color = isLight ? "#0f172a" : "#e5e7eb";
+  }
+  if (input) {
+    input.style.background = isLight ? "#ffffff" : "rgba(15,23,42,.9)";
+    input.style.border = isLight ? "1px solid rgba(15,23,42,.2)" : "1px solid rgba(148,163,184,.3)";
+    input.style.color = isLight ? "#0f172a" : "#e5e7eb";
+  }
+}
+window.addEventListener("theme-changed", (e) => {
+  applySupportTheme(e.detail?.theme || "dark");
+});
+applySupportTheme(document.documentElement.dataset.theme || "dark");
+
+function toggleSupport() {
+  document.getElementById("support-chat").style.display = supportVisible
+    ? "none"
+    : "block";
+  document.getElementById("support-toggle").style.opacity = supportVisible
+    ? "0.6"
+    : "1";
+  supportVisible = !supportVisible;
+}
+async function sendSupport() {
+  const input = document.getElementById("support-input");
+  const msg = input.value.trim();
+  if (!msg) return;
+  addSupportMsg("user", msg);
+  input.value = "";
+  try {
+    const res = await fetch("/api/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await res.json();
+    addSupportMsg("bot", data.reply);
+  } catch {
+    addSupportMsg("bot", "Server error");
+  }
+}
+function addSupportMsg(sender, text) {
+  const msgs = document.getElementById("support-messages");
+  const div = document.createElement("div");
+  const isLight = document.documentElement.dataset.theme === "light";
+  if (sender === "user") {
+    div.style.cssText =
+      "margin:8px auto 8px auto;padding:12px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#022c22;border-radius:16px;max-width:80%;text-align:right";
+  } else {
+    div.style.cssText = isLight
+      ? "margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);border-radius:16px;max-width:80%;color:#0f172a"
+      : "margin:8px 0;padding:12px 16px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:16px;max-width:80%;color:#e5e7eb";
+  }
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+document.getElementById("support-input").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendSupport();
+});
+setTimeout(() => addSupportMsg("bot", "🆘 Hi! Need help with login, donations, or app?"), 1500);
 </script>
 </body>
 </html>

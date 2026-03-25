@@ -31,6 +31,18 @@ db.serialize(() => {
       FOREIGN KEY (donor_id) REFERENCES users(id)
     )
   `);
+
+  // Store donations so we can show totals even after the active food is removed.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS donations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      donor_id INTEGER NOT NULL,
+      food_id INTEGER NOT NULL,
+      quantity_text TEXT,
+      quantity_value REAL DEFAULT 0,
+      donated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 });
 
 export function run(sql: string, params: any[] = []): Promise<void> {
