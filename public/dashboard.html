@@ -18,6 +18,7 @@
       </div>
       <div class="header-actions">
         <button id="themeToggleBtn" class="btn-ghost">Light</button>
+        <a href="/donations.html" class="btn-ghost" style="text-decoration:none;">Donations</a>
         <button id="logoutBtn" class="btn-ghost">Logout</button>
       </div>
     </div>
@@ -118,7 +119,13 @@
               Non-expired listings from all donors, ordered by nearest expiry.
             </p>
           </div>
-          <span class="chip">Live</span>
+          <div id="userSearchBar" class="foods-search" style="display:none;">
+            <input id="locationSearchInput" class="foods-search-input" type="text" placeholder="search by location" />
+            <div class="foods-filter">
+              <button id="locationFilterBtn" class="btn-ghost foods-filter-btn" type="button">Filter</button>
+              <div id="locationFilterMenu" class="foods-filter-menu" style="display:none;"></div>
+            </div>
+          </div>
         </div>
         <div id="foods" class="cards-grid"></div>
       </section>
@@ -171,6 +178,82 @@ document.getElementById("logoutBtn").onclick = () => {
   window.location.href = "/";
 };
 
+// User search/filter state
+let allFoodsCache = [];
+let selectedLocation = "";
+
+function normalizeLocation(text) {
+  return String(text || "").trim().toLowerCase();
+}
+
+function getUniqueLocations(foods) {
+  const set = new Set();
+  foods.forEach((f) => {
+    const raw = (f && f.contact_info) ? String(f.contact_info) : "";
+    const loc = raw.trim();
+    if (loc) set.add(loc);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function renderLocationMenu() {
+  const menu = document.getElementById("locationFilterMenu");
+  if (!menu) return;
+  const locations = getUniqueLocations(allFoodsCache);
+
+  const items = [
+    { label: "All locations", value: "" },
+    ...locations.map((l) => ({ label: l, value: l })),
+  ];
+
+  menu.innerHTML = items
+    .map((it) => {
+      const active = it.value === selectedLocation;
+      return `<button type="button" class="foods-filter-item${active ? " is-active" : ""}" data-location="${encodeURIComponent(it.value)}">${it.label}</button>`;
+    })
+    .join("");
+}
+
+function applyFoodsFilter() {
+  const query = normalizeLocation(document.getElementById("locationSearchInput")?.value);
+  const selected = normalizeLocation(selectedLocation);
+
+  const filtered = allFoodsCache.filter((f) => {
+    const locRaw = (f && f.contact_info) ? String(f.contact_info) : "";
+    const loc = normalizeLocation(locRaw);
+
+    const matchesSelected = !selected || loc.includes(selected);
+    const matchesQuery = !query || loc.includes(query);
+    return matchesSelected && matchesQuery;
+  });
+
+  renderFoodsList(filtered);
+}
+
+function renderFoodsList(foods) {
+  const container = document.getElementById("foods");
+  container.innerHTML = "";
+  foods.forEach((f) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="card-header-line">
+        <div class="card-title">${f.title}</div>
+        <span class="card-chip">Donor: ${f.donor_name || "Unknown"}</span>
+      </div>
+      <div class="card-body">
+        <p>${f.description || ""}</p>
+        <div class="card-meta">
+          <span><strong>Qty:</strong> ${f.quantity || "N/A"}</span>
+          <span><strong>Expires:</strong> ${new Date(f.expiry).toLocaleString()}</span>
+          <span><strong>Contact:</strong> ${f.contact_info}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
 if (role === "donor") {
   document.getElementById("donorSection").style.display = "block";
 
@@ -203,27 +286,9 @@ if (role === "donor") {
 async function loadFoods() {
   const res = await fetch(API_BASE + "/foods");
   const foods = await res.json();
-  const container = document.getElementById("foods");
-  container.innerHTML = "";
-  foods.forEach((f) => {
-    const div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `
-      <div class="card-header-line">
-        <div class="card-title">${f.title}</div>
-        <span class="card-chip">Donor: ${f.donor_name || "Unknown"}</span>
-      </div>
-      <div class="card-body">
-        <p>${f.description || ""}</p>
-        <div class="card-meta">
-          <span><strong>Qty:</strong> ${f.quantity || "N/A"}</span>
-          <span><strong>Expires:</strong> ${new Date(f.expiry).toLocaleString()}</span>
-          <span><strong>Contact:</strong> ${f.contact_info}</span>
-        </div>
-      </div>
-    `;
-    container.appendChild(div);
-  });
+  allFoodsCache = Array.isArray(foods) ? foods : [];
+  renderLocationMenu();
+  applyFoodsFilter();
 }
 
 async function loadMyFoods() {
@@ -363,6 +428,44 @@ document.getElementById("myFoods").addEventListener("click", (e) => {
     markDonated(foodId);
   }
 });
+
+// Wire up user search/filter UI
+if (role === "user") {
+  const searchBar = document.getElementById("userSearchBar");
+  if (searchBar) searchBar.style.display = "flex";
+
+  const input = document.getElementById("locationSearchInput");
+  if (input) {
+    input.addEventListener("input", () => {
+      applyFoodsFilter();
+    });
+  }
+
+  const btn = document.getElementById("locationFilterBtn");
+  const menu = document.getElementById("locationFilterMenu");
+  if (btn && menu) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menu.style.display = menu.style.display === "block" ? "none" : "block";
+    });
+
+    menu.addEventListener("click", (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const item = target.closest("button[data-location]");
+      if (!(item instanceof HTMLElement)) return;
+      const loc = decodeURIComponent(item.dataset.location || "");
+      selectedLocation = loc;
+      renderLocationMenu();
+      applyFoodsFilter();
+      menu.style.display = "none";
+    });
+
+    document.addEventListener("click", () => {
+      menu.style.display = "none";
+    });
+  }
+}
 
 loadFoods();
 loadMyFoods();

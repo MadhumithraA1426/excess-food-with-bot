@@ -112,6 +112,69 @@ body {
   gap: 10px;
 }
 
+/* USER SEARCH + FILTER (DASHBOARD) */
+.foods-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.foods-search-input {
+  width: 220px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-main);
+  font-size: 12px;
+  outline: none;
+}
+
+.foods-filter {
+  position: relative;
+}
+
+.foods-filter-btn {
+  padding: 7px 14px;
+}
+
+.foods-filter-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 260px;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  padding: 8px;
+  z-index: 50;
+}
+
+.foods-filter-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-main);
+  padding: 10px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.foods-filter-item:hover {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.foods-filter-item.is-active {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
 .badge-pill {
   padding: 5px 12px;
   border-radius: 999px;
@@ -187,6 +250,66 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
+}
+
+.panel-header-stack {
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.foods-search-wide {
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.foods-search-input-wide {
+  width: min(420px, 55vw);
+}
+
+/* POWERBI-LIKE CHARTS */
+.pbi-chart {
+  margin-top: 10px;
+  height: 190px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 12px;
+  overflow: hidden;
+}
+
+.pbi-bars {
+  height: 100%;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(10px, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.pbi-bar-col {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 6px;
+  align-items: end;
+}
+
+.pbi-bar {
+  width: 100%;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(34,197,94,0.95), rgba(34,197,94,0.25));
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.pbi-bar-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .panel-header h2 {
@@ -534,6 +657,26 @@ html[data-theme="light"] .btn-ghost:hover {
   box-shadow: 0 8px 18px rgba(2, 6, 23, 0.08);
 }
 
+html[data-theme="light"] .foods-search-input {
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+}
+
+html[data-theme="light"] .foods-filter-menu {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.12);
+}
+
+html[data-theme="light"] .foods-filter-item {
+  color: var(--text-main);
+}
+
+html[data-theme="light"] .pbi-chart {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
 html[data-theme="light"] input,
 html[data-theme="light"] select,
 html[data-theme="light"] textarea {

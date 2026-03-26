@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Donations Dashboard - Excess Food Management</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="container">
+  <div class="app-shell">
+    <div class="app-header">
+      <div class="brand">
+        <div class="brand-logo">E</div>
+        <div class="brand-text">
+          <h1>Donations Dashboard</h1>
+          <span id="welcome" class="text-muted"></span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="themeToggleBtn" class="btn-ghost">Light</button>
+        <a href="/dashboard.html" class="btn-ghost" style="text-decoration:none;">Back</a>
+        <button id="logoutBtn" class="btn-ghost">Logout</button>
+      </div>
+    </div>
+
+    <div class="app-body" style="grid-template-columns: minmax(0, 1fr);">
+      <section class="panel">
+        <div class="panel-header panel-header-stack">
+          <div>
+            <h2>PowerBI-style overview</h2>
+            <p class="panel-subtitle">Last 14 days donation trend (count + numeric quantity sum).</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; margin-left:auto; flex-wrap:wrap; justify-content:flex-end;">
+            <select id="daysSelect" style="min-width: 120px;">
+              <option value="7">7 days</option>
+              <option value="14" selected>14 days</option>
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+            </select>
+            <span class="chip">Charts</span>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;">
+          <div class="card">
+            <div class="card-header-line">
+              <div class="card-title">Total donated items</div>
+              <span class="card-chip" id="totalCount">0</span>
+            </div>
+            <div class="card-body"><p><strong>Quantity:</strong> <span id="totalQty">0</span></p></div>
+          </div>
+          <div class="card">
+            <div class="card-header-line">
+              <div class="card-title">My donated items</div>
+              <span class="card-chip" id="myCount">0</span>
+            </div>
+            <div class="card-body"><p><strong>Quantity:</strong> <span id="myQty">0</span></p></div>
+          </div>
+        </div>
+
+        <div class="mt-2" style="display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;">
+          <div class="card">
+            <div class="card-header-line">
+              <div class="card-title">Total donations (count)</div>
+              <span class="card-chip">Trend</span>
+            </div>
+            <div class="card-body">
+              <div id="totalCountChart" class="pbi-chart"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header-line">
+              <div class="card-title">My donations (count)</div>
+              <span class="card-chip">Trend</span>
+            </div>
+            <div class="card-body">
+              <div id="myCountChart" class="pbi-chart"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "/api";
+const token = localStorage.getItem("token");
+const role = localStorage.getItem("role");
+const name = localStorage.getItem("name");
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById("themeToggleBtn");
+  if (btn) btn.innerText = theme === "light" ? "Dark" : "Light";
+}
+const savedTheme = localStorage.getItem("theme");
+const initialTheme =
+  savedTheme ||
+  (window.matchMedia &&
+  window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark");
+applyTheme(initialTheme);
+window.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: initialTheme } }));
+document.getElementById("themeToggleBtn").onclick = () => {
+  const current = document.documentElement.dataset.theme || "dark";
+  const next = current === "light" ? "dark" : "light";
+  localStorage.setItem("theme", next);
+  applyTheme(next);
+  window.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: next } }));
+};
+
+if (!token) window.location.href = "/";
+if (role !== "donor") window.location.href = "/listings.html";
+
+document.getElementById("welcome").innerText =
+  "Logged in as " + name + " (" + role + ")";
+
+document.getElementById("logoutBtn").onclick = () => {
+  localStorage.clear();
+  window.location.href = "/";
+};
+
+function formatNumber(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "0";
+  return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function renderBarChart(containerId, series) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const max = Math.max(1, ...series.map((d) => Number(d.donatedCount || 0)));
+  el.innerHTML = `
+    <div class="pbi-bars">
+      ${series.map((d) => {
+        const v = Number(d.donatedCount || 0);
+        const h = Math.round((v / max) * 100);
+        const label = String(d.day || "").slice(5); // MM-DD
+        return `
+          <div class="pbi-bar-col" title="${d.day}: ${v}">
+            <div class="pbi-bar" style="height:${h}%"></div>
+            <div class="pbi-bar-label">${label}</div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+async function loadTotals() {
+  const totalRes = await fetch(API_BASE + "/foods/stats");
+  const total = await totalRes.json();
+  document.getElementById("totalCount").innerText = total.donatedCount ?? 0;
+  document.getElementById("totalQty").innerText = formatNumber(total.donatedQuantityTotal ?? 0);
+
+  const myRes = await fetch(API_BASE + "/foods/mine/stats", {
+    headers: { Authorization: "Bearer " + token },
+  });
+  const mine = await myRes.json();
+  document.getElementById("myCount").innerText = mine.donatedCount ?? 0;
+  document.getElementById("myQty").innerText = formatNumber(mine.donatedQuantityTotal ?? 0);
+}
+
+async function loadCharts() {
+  const days = Number(document.getElementById("daysSelect").value || 14);
+
+  const totalRes = await fetch(API_BASE + "/foods/donations/timeseries?days=" + days);
+  const total = await totalRes.json();
+  renderBarChart("totalCountChart", total.series || []);
+
+  const myRes = await fetch(API_BASE + "/foods/donations/mine/timeseries?days=" + days, {
+    headers: { Authorization: "Bearer " + token },
+  });
+  const mine = await myRes.json();
+  renderBarChart("myCountChart", mine.series || []);
+}
+
+document.getElementById("daysSelect").addEventListener("change", () => {
+  loadCharts();
+});
+
+loadTotals();
+loadCharts();
+</script>
+</body>
+</html>
+

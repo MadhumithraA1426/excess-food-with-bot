@@ -82,6 +82,63 @@ router.get("/mine/stats", auth("donor"), async (req: AuthRequest, res) => {
   }
 });
 
+// Donation time series (PowerBI-like charts)
+router.get("/donations/timeseries", async (req, res) => {
+  try {
+    const daysRaw = Number(req.query.days ?? 14);
+    const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(90, daysRaw)) : 14;
+
+    const rows = await all<{
+      day: string;
+      donatedCount: number;
+      donatedQuantityTotal: number;
+    }>(
+      `SELECT
+         date(donated_at) as day,
+         COUNT(*) as donatedCount,
+         COALESCE(SUM(quantity_value), 0) as donatedQuantityTotal
+       FROM donations
+       WHERE datetime(donated_at) >= datetime('now', ?)
+       GROUP BY date(donated_at)
+       ORDER BY date(donated_at) ASC`,
+      [`-${days} days`]
+    );
+
+    res.json({ days, series: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/donations/mine/timeseries", auth("donor"), async (req: AuthRequest, res) => {
+  try {
+    const daysRaw = Number(req.query.days ?? 14);
+    const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(90, daysRaw)) : 14;
+
+    const rows = await all<{
+      day: string;
+      donatedCount: number;
+      donatedQuantityTotal: number;
+    }>(
+      `SELECT
+         date(donated_at) as day,
+         COUNT(*) as donatedCount,
+         COALESCE(SUM(quantity_value), 0) as donatedQuantityTotal
+       FROM donations
+       WHERE donor_id = ? AND datetime(donated_at) >= datetime('now', ?)
+       GROUP BY date(donated_at)
+       ORDER BY date(donated_at) ASC`,
+      [req.userId, `-${days} days`]
+    );
+
+    res.json({ days, series: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Get all non-expired foods (for both users and donors)
 router.get("/", async (_req, res) => {
   try {

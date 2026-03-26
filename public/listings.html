@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Excess Food Management - Login</title>
+  <title>Food Listings - Excess Food Management</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,98 +12,37 @@
       <div class="brand">
         <div class="brand-logo">E</div>
         <div class="brand-text">
-          <h1>Excess Food</h1>
-          <span>Share surplus • Reduce waste</span>
+          <h1>Food Listings</h1>
+          <span id="welcome" class="text-muted"></span>
         </div>
       </div>
       <div class="header-actions">
         <button id="themeToggleBtn" class="btn-ghost">Light</button>
-        <div class="badge-pill">Node + TypeScript + SQLite</div>
+        <a href="/donations.html" id="donationsLink" class="btn-ghost" style="text-decoration:none; display:none;">Donations</a>
+        <button id="logoutBtn" class="btn-ghost">Logout</button>
       </div>
     </div>
 
-    <div class="auth-layout">
-      <section class="auth-hero">
-        <h2 class="auth-hero-title">Connect donors with people in need.</h2>
-        <p class="auth-hero-subtitle">
-          Donors can list excess food with expiry time, and users can quickly discover available items before they go to waste.
-        </p>
-        <div class="hero-metrics">
-          <div class="metric-pill">Auto-cleans expired food</div>
-          <div class="metric-pill">Two roles: Donor & User</div>
-          <div class="metric-pill">Simple, responsive UI</div>
-        </div>
-      </section>
-
+    <div class="app-body" style="grid-template-columns: minmax(0, 1fr);">
       <section class="panel">
-        <div class="panel-header">
+        <div class="panel-header panel-header-stack">
           <div>
-            <h2>Get started</h2>
-            <p class="panel-subtitle">Register once, then log in with the same email.</p>
+            <h2>Available foods</h2>
+            <p class="panel-subtitle">
+              Non-expired listings from all donors, ordered by nearest expiry.
+            </p>
           </div>
-          <span class="chip">Auth</span>
+
+          <div class="foods-search foods-search-wide">
+            <input id="locationSearchInput" class="foods-search-input foods-search-input-wide" type="text" placeholder="search by location" />
+            <div class="foods-filter">
+              <button id="locationFilterBtn" class="btn-ghost foods-filter-btn" type="button">Filter</button>
+              <div id="locationFilterMenu" class="foods-filter-menu" style="display:none;"></div>
+            </div>
+          </div>
         </div>
 
-        <div class="form-grid form-grid-full" style="margin-bottom: 12px;">
-          <!-- Register -->
-          <div class="form-group form-grid-full">
-            <h3 style="margin:0 0 4px;font-size:14px;">Register</h3>
-          </div>
-
-          <form id="registerForm" class="form-grid form-grid-full">
-            <div class="form-group form-grid-full">
-              <label for="regName">Name</label>
-              <input type="text" id="regName" placeholder="Your full name" required />
-            </div>
-
-            <div class="form-group form-grid-full">
-              <label for="regEmail">Email</label>
-              <input type="email" id="regEmail" placeholder="you@example.com" required />
-            </div>
-
-            <div class="form-group">
-              <label for="regPassword">Password</label>
-              <input type="password" id="regPassword" placeholder="Choose a strong password" required />
-            </div>
-
-            <div class="form-group">
-              <label for="regRole">Role</label>
-              <select id="regRole">
-                <option value="user">User</option>
-                <option value="donor">Donor</option>
-              </select>
-            </div>
-
-            <div class="form-group form-grid-full">
-              <button type="submit" class="btn-primary">
-                Create account
-              </button>
-            </div>
-          </form>
-
-          <div class="form-group form-grid-full" style="margin-top: 10px;">
-            <h3 style="margin:10px 0 4px;font-size:14px;">Login</h3>
-          </div>
-
-          <!-- Login -->
-          <form id="loginForm" class="form-grid form-grid-full">
-            <div class="form-group form-grid-full">
-              <label for="logEmail">Email</label>
-              <input type="email" id="logEmail" placeholder="you@example.com" required />
-            </div>
-
-            <div class="form-group form-grid-full">
-              <label for="logPassword">Password</label>
-              <input type="password" id="logPassword" placeholder="Your password" required />
-            </div>
-
-            <div class="form-group form-grid-full">
-              <button type="submit" class="btn-primary">
-                Continue
-              </button>
-            </div>
-          </form>
-        </div>
+        <div id="foods" class="cards-grid"></div>
       </section>
     </div>
   </div>
@@ -111,6 +50,9 @@
 
 <script>
 const API_BASE = "/api";
+const token = localStorage.getItem("token");
+const role = localStorage.getItem("role");
+const name = localStorage.getItem("name");
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -139,50 +81,127 @@ if (themeBtn) {
   };
 }
 
-document.getElementById("registerForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const form = e.target; // form reference
-  const body = {
-    name: document.getElementById("regName").value,
-    email: document.getElementById("regEmail").value,
-    password: document.getElementById("regPassword").value,
-    role: document.getElementById("regRole").value,
-  };
-  const res = await fetch(API_BASE + "/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  alert(data.message || "Registered");
+if (!token) window.location.href = "/";
+if (role !== "user") window.location.href = "/dashboard.html";
 
-  if (res.ok) {
-    form.reset(); // clear all fields after successful registration
-  }
+document.getElementById("welcome").innerText =
+  "Logged in as " + name + " (" + role + ")";
+
+document.getElementById("logoutBtn").onclick = () => {
+  localStorage.clear();
+  window.location.href = "/";
+};
+
+// Search/filter state
+let allFoodsCache = [];
+let selectedLocation = "";
+
+function normalize(text) {
+  return String(text || "").trim().toLowerCase();
+}
+
+function getUniqueLocations(foods) {
+  const set = new Set();
+  foods.forEach((f) => {
+    const loc = String(f?.contact_info || "").trim();
+    if (loc) set.add(loc);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function renderLocationMenu() {
+  const menu = document.getElementById("locationFilterMenu");
+  if (!menu) return;
+  const locations = getUniqueLocations(allFoodsCache);
+  const items = [
+    { label: "All locations", value: "" },
+    ...locations.map((l) => ({ label: l, value: l })),
+  ];
+  menu.innerHTML = items
+    .map((it) => {
+      const active = it.value === selectedLocation;
+      return `<button type="button" class="foods-filter-item${active ? " is-active" : ""}" data-location="${encodeURIComponent(it.value)}">${it.label}</button>`;
+    })
+    .join("");
+}
+
+function renderFoodsList(foods) {
+  const container = document.getElementById("foods");
+  container.innerHTML = "";
+  foods.forEach((f) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="card-header-line">
+        <div class="card-title">${f.title}</div>
+        <span class="card-chip">Donor: ${f.donor_name || "Unknown"}</span>
+      </div>
+      <div class="card-body">
+        <p>${f.description || ""}</p>
+        <div class="card-meta">
+          <span><strong>Qty:</strong> ${f.quantity || "N/A"}</span>
+          <span><strong>Expires:</strong> ${new Date(f.expiry).toLocaleString()}</span>
+          <span><strong>Contact:</strong> ${f.contact_info}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function applyFoodsFilter() {
+  const query = normalize(document.getElementById("locationSearchInput")?.value);
+  const selected = normalize(selectedLocation);
+
+  const filtered = allFoodsCache.filter((f) => {
+    const loc = normalize(f?.contact_info);
+    const matchesSelected = !selected || loc.includes(selected);
+    const matchesQuery = !query || loc.includes(query);
+    return matchesSelected && matchesQuery;
+  });
+
+  renderFoodsList(filtered);
+}
+
+async function loadFoods() {
+  const res = await fetch(API_BASE + "/foods");
+  const foods = await res.json();
+  allFoodsCache = Array.isArray(foods) ? foods : [];
+  renderLocationMenu();
+  applyFoodsFilter();
+}
+
+// UI wire-up
+document.getElementById("locationSearchInput").addEventListener("input", () => {
+  applyFoodsFilter();
 });
 
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const body = {
-    email: document.getElementById("logEmail").value,
-    password: document.getElementById("logPassword").value,
-  };
-  const res = await fetch(API_BASE + "/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (res.ok) {
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("role", data.role);
-    localStorage.setItem("name", data.name);
-    window.location.href = data.role === "user" ? "/listings.html" : "/dashboard.html";
-  } else {
-    alert(data.message || "Login failed");
-  }
+const filterBtn = document.getElementById("locationFilterBtn");
+const filterMenu = document.getElementById("locationFilterMenu");
+
+filterBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  filterMenu.style.display = filterMenu.style.display === "block" ? "none" : "block";
 });
+
+filterMenu.addEventListener("click", (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  const item = target.closest("button[data-location]");
+  if (!(item instanceof HTMLElement)) return;
+  selectedLocation = decodeURIComponent(item.dataset.location || "");
+  renderLocationMenu();
+  applyFoodsFilter();
+  filterMenu.style.display = "none";
+});
+
+document.addEventListener("click", () => {
+  filterMenu.style.display = "none";
+});
+
+loadFoods();
 </script>
+
 <!-- Support Chatbot -->
 <div id="support-chat" style="display:none;position:fixed;bottom:20px;right:20px;width:320px;height:420px;background:rgba(15,23,42,0.98);border-radius:14px;border:1px solid rgba(148,163,184,.3);box-shadow:0 20px 40px rgba(0,0,0,.5);z-index:9999">
   <div style="background:linear-gradient(135deg,#22c55e,#16a34a);padding:15px;border-radius:14px 14px 0 0;color:#022c22;font-weight:600;font-size:14px;display:flex;justify-content:space-between">
@@ -232,6 +251,7 @@ function toggleSupport() {
     : "1";
   supportVisible = !supportVisible;
 }
+
 async function sendSupport() {
   const input = document.getElementById("support-input");
   const msg = input.value.trim();
@@ -250,6 +270,7 @@ async function sendSupport() {
     addSupportMsg("bot", "Server error");
   }
 }
+
 function addSupportMsg(sender, text) {
   const msgs = document.getElementById("support-messages");
   const div = document.createElement("div");
@@ -266,6 +287,7 @@ function addSupportMsg(sender, text) {
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
+
 document.getElementById("support-input").addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendSupport();
 });
@@ -273,3 +295,4 @@ setTimeout(() => addSupportMsg("bot", "🆘 Hi! Need help with login, donations,
 </script>
 </body>
 </html>
+
