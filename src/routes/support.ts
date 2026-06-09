@@ -15,7 +15,7 @@ router.post('/support', async (req, res) => {
         "🤖 Support bot is not configured (missing GEMINI_API_KEY). Please try again later.",
     });
   }
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   
   const prompt = `You are Excess Food Management support bot. Help with:
 - Login/register issues
